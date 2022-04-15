@@ -2,13 +2,14 @@ import { Request, Response } from "express";
 import * as cardServices from '../services/cardsServices.js'
 
 export async function create(req: Request, res: Response) {
-    const {idEmployee, cardType } = req.body
+    const {employeeId, type } = req.body
 
-    if (!cardType || !idEmployee) {
+    if (!type || !employeeId) {
         return res.sendStatus(422);
     }
 
-    await cardServices.create(idEmployee, cardType)
+    const data = await cardServices.create(employeeId, type)
+   
 
     return res.sendStatus(201)
 }
