@@ -10,4 +10,6 @@ cardRouter.post('/create',
     validateCardTypeMiddleware(typeCardSchema),
     cardsController.create    
 )
+cardRouter.post('/activate', cardsController.update)
+cardRouter.get('/balance/:id', cardsController.balance)
 export default cardRouter

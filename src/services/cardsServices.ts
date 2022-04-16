@@ -1,13 +1,21 @@
 import * as cardRepository from '../repositories/cardRepository.js'
 import * as employeeRepository from '../repositories/employeeRepository.js'
 import { TransactionTypes } from '../repositories/cardRepository.js';
+import * as paymentRepository from '../repositories/paymentRepository.js'
+import * as rechargeRepository from '../repositories/rechargeRepository.js'
+import valitadedCard from './valitedNotExpiredCard.js';
+import totalBalance from './totalBalanceService.js';
+
 import { faker } from '@faker-js/faker';
 import dayjs from 'dayjs'
 import bcrypt from "bcrypt";
 
 export async function create(employeeId: number, type: TransactionTypes) {
     
-    const employerData = await employeeRepository.findById(employeeId)
+    const employerData = await verifyEmployee(employeeId);
+    const verifyAlreadHaveTypeCard = await cardRepository.findByTypeAndEmployeeId(type, employeeId)
+    if(verifyAlreadHaveTypeCard) throw new Error("Empregado já possui este cartão") ;
+
     const employerFullName = employerData.fullName
     const cardholderName = cutName(employerFullName)
     
@@ -31,9 +39,6 @@ export async function create(employeeId: number, type: TransactionTypes) {
     };
     await cardRepository.insert(cardData)
     
-    if(!employerData) throw new Error("Empregado não encontrado") ;
-    const verifyAlreadHaveTypeCard = await cardRepository.findByTypeAndEmployeeId(type, employeeId)
-    if(verifyAlreadHaveTypeCard) throw new Error("Empregado já possui este cartão") ;
     
     function cutName(fullName:string) {
         const array = fullName.split(" ")
@@ -56,5 +61,44 @@ export async function create(employeeId: number, type: TransactionTypes) {
         const expiration = data.replace(cut[1], last as any);
         return expiration;
     }
-     
+}
+
+async function verifyEmployee(employeeId: number) {
+    const employerData = await employeeRepository.findById(employeeId);
+
+    if (!employerData)
+        throw new Error("Empregado não encontrado");
+    return employerData;
+}
+
+export async function update(cardId: number, cvc: string, password:string) {
+   
+   const card = await cardRepository.findById(cardId);
+
+   if (!(bcrypt.compareSync(cvc, card.securityCode)))  throw new Error("erro cvc");
+   if (dayjs().format('MM/YY') > card.expirationDate) throw Error("Cartão expirado");
+   if (card.password) throw Error("Cartão já ativado");
+   if (password.length !== 4) throw Error("A senha precisa ter 4 digitos")
+   const passwordHashed = bcrypt.hashSync(password, 10);
+   const activatedCard = {
+    ...card,
+    password: passwordHashed
+    };
+
+    await cardRepository.update(cardId, activatedCard)
+}
+
+export async function balance(cardId:any) {
+    const card = await valitadedCard(cardId)
+    
+    const balance = await totalBalance(cardId)
+    const payments = await paymentRepository.findByCardId(cardId)
+    const recharges = await rechargeRepository.findByCardId(cardId)
+    
+    const movimentation = {
+        balance:balance,
+        transactions:payments,
+        recharges:recharges
+    }
+    return movimentation
 }
